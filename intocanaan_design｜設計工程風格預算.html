@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTOCANAAN DESIGN | 風格報價模擬器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; }
+        .monochrome-border { border: 1px solid #e5e7eb; }
+    </style>
+</head>
+<body class="bg-white text-gray-900 min-h-screen py-12 px-4">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-12 text-center">
+            <h1 class="text-3xl font-light tracking-[0.2em] uppercase">INTOCANAAN DESIGN</h1>
+            <div class="w-12 h-[1px] bg-black mx-auto mt-4"></div>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-12">
+            <section class="space-y-6">
+                <div>
+                    <label class="block text-xs uppercase tracking-widest mb-2">空間屬性</label>
+                    <select id="spaceType" class="w-full p-3 monochrome-border outline-none bg-white">
+                        <option value="new">新成屋</option>
+                        <option value="old">老屋翻新</option>
+                        <option value="commercial">商空/辦公空間</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase tracking-widest mb-2">坪數設定 (坪)</label>
+                    <input type="number" id="sqFeet" value="20" class="w-full p-3 monochrome-border outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase tracking-widest mb-2">裝修風格選擇</label>
+                    <select id="styleSelection" class="w-full p-3 monochrome-border outline-none bg-white">
+                        <option value="1.0">現代極簡 Modern Minimal</option>
+                        <option value="1.1">日式北歐融合 Modern Japandi</option>
+                        <option value="1.1">奶油風 Creamy Style</option>
+                        <option value="1.2">侘寂風 Wabi-Sabi</option>
+                        <option value="1.15">工業風 Industrial</option>
+                        <option value="1.2">暗調現代 Moody Modern</option>
+                        <option value="1.05">北歐風 Scandinavian</option>
+                        <option value="1.3">新古典風 Neo Classic</option>
+                    </select>
+                </div>
+
+                <div class="pt-4" id="furnitureContainer">
+                    <label class="flex items-center space-x-2 cursor-pointer">
+                        <input type="checkbox" id="includeFurniture" class="w-4 h-4 accent-black">
+                        <span class="text-xs uppercase tracking-widest text-gray-600">包含軟裝家具家電規劃 (住宅空間限定)</span>
+                    </label>
+                </div>
+            </section>
+
+            <section class="monochrome-border p-8 bg-gray-50/50">
+                <h2 class="text-xs uppercase tracking-widest mb-6">估算總覽</h2>
+                <div class="space-y-4 text-sm" id="resultContainer">
+                    <div class="flex justify-between">
+                        <span>丈量提案費 <span class="text-[9px] text-gray-400 block">(簽約後可全額折抵)</span></span>
+                        <span id="resMeasure">$0</span>
+                    </div>
+                    <div class="flex justify-between"><span>設計費用</span><span id="resDesign">$0</span></div>
+                    <div class="flex justify-between"><span>工程造價 (預估)</span><span id="resProject">$0</span></div>
+                    <div class="flex justify-between"><span>工程監管費 (10%)</span><span id="resSupervision">$0</span></div>
+                    
+                    <div id="furnitureResult" class="hidden space-y-4">
+                        <div class="flex justify-between text-gray-500"><span>軟裝家具家電 (預估)</span><span id="resFurniture">$0</span></div>
+                        <div class="flex justify-between text-gray-500 text-[10px]"><span>軟裝代購服務費 (5%)</span><span id="resService">$0</span></div>
+                    </div>
+                    <div id="furnitureNotIncluded" class="flex justify-between text-gray-400 italic">
+                        <span>軟裝家具家電</span><span>另購</span>
+                    </div>
+
+                    <div class="w-full h-[1px] bg-gray-300 my-4"></div>
+                    <div class="flex justify-between text-lg font-bold">
+                        <span>預估總計 (不含丈量費)</span>
+                        <span id="resTotal">$0</span>
+                    </div>
+                </div>
+                <button onclick="copyToClipboard()" class="mt-8 w-full py-3 bg-black text-white text-xs uppercase tracking-widest hover:bg-gray-800 transition">複製報價資訊給設計師</button>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        function calculate() {
+            const type = document.getElementById('spaceType').value;
+            const size = parseFloat(document.getElementById('sqFeet').value) || 0;
+            const styleMultiplier = parseFloat(document.getElementById('styleSelection').value);
+            const isResidential = type !== 'commercial';
+            const includeFurniture = document.getElementById('includeFurniture').checked;
+
+            // 1. 丈量費
+            let measure = (type === 'commercial' ? (size >= 40 ? 55000 : 35000) : (size >= 40 ? 50000 : 30000));
+            
+            // 2. 設計費
+            let design = (type === 'new' ? 9000 : (type === 'old' ? 10000 : 8000)) * size;
+            
+            // 3. 工程造價
+            let [minP, maxP] = (type === 'new') ? [50000, 90000] : (type === 'old' ? [120000, 180000] : [50000, 180000]);
+            let projectAvg = ((minP + maxP) / 2) * size * styleMultiplier;
+            
+            // 4. 監管費
+            let supervision = projectAvg * 0.1;
+
+            // 5. 軟裝與家電
+            let furniture = 0;
+            let serviceFee = 0;
+            const furnitureResultDiv = document.getElementById('furnitureResult');
+            const furnitureNotIncludedDiv = document.getElementById('furnitureNotIncluded');
+
+            if (isResidential && includeFurniture) {
+                furniture = projectAvg * 0.3;
+                serviceFee = furniture * 0.05;
+                furnitureResultDiv.classList.remove('hidden');
+                furnitureNotIncludedDiv.classList.add('hidden');
+            } else {
+                furnitureResultDiv.classList.add('hidden');
+                furnitureNotIncludedDiv.classList.remove('hidden');
+            }
+
+            // 更新介面
+            document.getElementById('resMeasure').innerText = `$${measure.toLocaleString()}`;
+            document.getElementById('resDesign').innerText = `$${Math.round(design).toLocaleString()}`;
+            document.getElementById('resProject').innerText = `$${Math.round(projectAvg).toLocaleString()}`;
+            document.getElementById('resSupervision').innerText = `$${Math.round(supervision).toLocaleString()}`;
+            document.getElementById('resFurniture').innerText = `$${Math.round(furniture).toLocaleString()}`;
+            document.getElementById('resService').innerText = `$${Math.round(serviceFee).toLocaleString()}`;
+            
+            // 總計不含丈量費
+            let total = design + projectAvg + supervision + furniture + serviceFee;
+            document.getElementById('resTotal').innerText = `$${Math.round(total).toLocaleString()}`;
+        }
+
+        function copyToClipboard() {
+            const isResidential = document.getElementById('spaceType').value !== 'commercial';
+            const includeFurniture = document.getElementById('includeFurniture').checked;
+            const furnitureText = (isResidential && includeFurniture) ? `軟裝家具家電：${document.getElementById('resFurniture').innerText}\n軟裝代購服務費 (5%)：${document.getElementById('resService').innerText}` : "軟裝家具家電：另購";
+
+            const text = `設計師您好，我已透過模擬器進行初步估算：
+
+[案件資訊]
+空間類型：${document.getElementById('spaceType').options[document.getElementById('spaceType').selectedIndex].text}
+坪數：${document.getElementById('sqFeet').value}坪
+偏好風格：${document.getElementById('styleSelection').options[document.getElementById('styleSelection').selectedIndex].text}
+
+[費用細項]
+丈量提案費 (簽約後可全額折抵)：${document.getElementById('resMeasure').innerText}
+設計費用：${document.getElementById('resDesign').innerText}
+工程造價 (預估)：${document.getElementById('resProject').innerText}
+工程監管費 (10%)：${document.getElementById('resSupervision').innerText}
+${furnitureText}
+
+預估總計 (不含丈量費)：${document.getElementById('resTotal').innerText}
+
+[說明]
+${(isResidential && includeFurniture) ? "軟裝代購服務：提供家具家電採購服務，收取設備費總額 × 5% 服務費。" : ""}
+
+請協助評估，謝謝！`;
+            
+            navigator.clipboard.writeText(text).then(() => alert("詳細報價摘要已複製，請貼上於 LINE 對話框發送。"));
+        }
+
+        document.querySelectorAll('select, input').forEach(el => el.addEventListener('change', calculate));
+        calculate();
+    </script>
+</body>
+</html>
