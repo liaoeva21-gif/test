@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>INTOCANAAN DESIGN | 預算分配模擬器</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            black: '#111827',
+                            dark: '#1f2937',
+                            gray: '#4b5563',
+                            light: '#f3f4f6',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Noto Sans TC"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap');
+
+        body {
+            background-color: #ffffff;
+            color: #111827;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* Custom Range Slider (Light Minimalist Theme) */
+        input[type=range] {
+            -webkit-appearance: none;
+            background: transparent;
+            width: 100%;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            background: #111827;
+            cursor: pointer;
+            margin-top: -6px;
+            border: 2px solid #ffffff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #e5e7eb;
+            border-radius: 2px;
+        }
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #9ca3af;
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+        /* Clean number input */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Print Styles */
+        @media print {
+            body { padding: 0; margin: 0; }
+            .print\:hidden { display: none !important; }
+            .print\:w-full { width: 100% !important; }
+            .print\:border-none { border: none !important; }
+            .print\:text-black { color: #000 !important; }
+            .shadow-sm, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+            
+            /* 強制分頁設定 */
+            .print-page-break { 
+                page-break-before: always; 
+                break-before: page; 
+            }
+            
+            /* Force table background colors in print */
+            thead { background-color: #111827 !important; color: #ffffff !important; }
+            th { color: #ffffff !important; }
+            
+            input[type=number], input[type=text] { 
+                border: none; 
+                background: transparent; 
+                padding: 0; 
+                margin: 0;
+                text-align: right;
+            }
+            #budgetTableBody tr { break-inside: avoid; }
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 font-sans">
+
+    <div class="max-w-[1400px] mx-auto space-y-12">
+        
+        <!-- Header -->
+        <header class="text-center pt-8 pb-4">
+            <h1 class="text-3xl md:text-4xl tracking-[0.2em] font-medium text-brand-black uppercase">INTOCANAAN DESIGN</h1>
+            <div class="w-12 h-[2px] bg-brand-black mx-auto mt-6 mb-4"></div>
+            <p class="text-brand-gray text-sm tracking-[0.1em]">室內裝修工程預算分配</p>
+        </header>
+
+        <!-- Main Layout Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-10">
+            
+            <!-- Left Column: Inputs & Total -->
+            <div class="lg:col-span-4 space-y-8 flex flex-col justify-center">
+                
+                <!-- Project Name Input -->
+                <div class="space-y-3">
+                    <div class="flex justify-between items-end">
+                        <label class="text-sm font-bold text-brand-black tracking-wide">專案名稱</label>
+                        <input type="text" id="projectName" value="新建裝修專案" onchange="updateState()" placeholder="請輸入專案名稱" class="text-xl font-bold text-right w-56 focus:outline-none bg-transparent print:border-none border-b border-gray-300 placeholder-gray-300"/>
+                    </div>
+                </div>
+
+                <!-- Preset Types -->
+                <div class="space-y-3 print:hidden">
+                    <label class="text-sm font-bold text-brand-black tracking-wide">專案類型 (套用預設配比)</label>
+                    <div class="grid grid-cols-1 gap-2">
+                        <button onclick="applyPreset('new')" id="btnPreset-new" class="preset-btn text-left px-4 py-3 border border-brand-black ring-1 ring-brand-black bg-gray-50 rounded-md hover:bg-gray-50 transition-all">
+                            <div class="font-bold text-brand-black flex justify-between items-center">
+                                <span>A. 新成屋</span>
+                                <span class="text-xs font-normal text-brand-gray bg-white px-2 py-1 rounded border border-gray-200">預設: $70,000/坪</span>
+                            </div>
+                            <div class="text-xs text-brand-gray mt-1 tracking-wide">收費參考：$50,000 - $90,000 /坪</div>
+                        </button>
+                        <button onclick="applyPreset('old')" id="btnPreset-old" class="preset-btn text-left px-4 py-3 border border-gray-300 rounded-md hover:bg-gray-50 transition-all">
+                            <div class="font-bold text-brand-black flex justify-between items-center">
+                                <span>B. 老屋翻新</span>
+                                <span class="text-xs font-normal text-brand-gray bg-white px-2 py-1 rounded border border-gray-200">預設: $140,000/坪</span>
+                            </div>
+                            <div class="text-xs text-brand-gray mt-1 tracking-wide">收費參考：$120,000 - $180,000 /坪</div>
+                        </button>
+                        <button onclick="applyPreset('com')" id="btnPreset-com" class="preset-btn text-left px-4 py-3 border border-gray-300 rounded-md hover:bg-gray-50 transition-all">
+                            <div class="font-bold text-brand-black flex justify-between items-center">
+                                <span>C. 商空 / 辦公空間</span>
+                                <span class="text-xs font-normal text-brand-gray bg-white px-2 py-1 rounded border border-gray-200">預設: $80,000/坪</span>
+                            </div>
+                            <div class="text-xs text-brand-gray mt-1 tracking-wide">收費參考：$50,000 - $180,000 /坪</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Area Input -->
+                <div class="space-y-3">
+                    <div class="flex justify-between items-end">
+                        <label class="text-sm font-bold text-brand-black tracking-wide">實際裝修坪數</label>
+                        <div class="flex items-baseline gap-1">
+                            <input type="number" id="area" value="24" min="1" onchange="updateState()" class="text-xl font-bold text-right w-20 focus:outline-none bg-transparent print:border-none border-b border-gray-300"/>
+                            <span class="text-sm font-bold text-brand-black">坪</span>
+                        </div>
+                    </div>
+                    <input type="range" id="areaSlider" min="10" max="100" step="1" value="24" oninput="document.getElementById('area').value=this.value; updateState();" class="print:hidden"/>
+                </div>
+
+                <!-- Unit Price Input -->
+                <div class="space-y-3">
+                    <div class="flex justify-between items-end">
+                        <label class="text-sm font-bold text-brand-black tracking-wide">工程基礎單價 (不含稅管)</label>
+                        <div class="flex items-baseline gap-1">
+                            <input type="number" id="unitPriceInput" value="70000" min="1000" step="1000" onchange="updateUnitPrice(this.value)" class="text-xl font-bold text-right w-28 focus:outline-none bg-transparent print:border-none border-b border-gray-300"/>
+                            <span class="text-sm font-bold text-brand-black">元/坪</span>
+                        </div>
+                    </div>
+                    <input type="range" id="unitPriceSlider" min="20000" max="200000" step="5000" value="70000" oninput="updateUnitPrice(this.value)" class="print:hidden"/>
+                </div>
+
+                <!-- Total Summary display -->
+                <div class="pt-10 border-t border-gray-200">
+                    <p class="text-sm text-brand-gray font-medium mb-2 tracking-wide">專案總承攬金額 (含稅含管)</p>
+                    <div class="flex items-baseline gap-2 text-brand-black">
+                        <span class="text-3xl font-black">NT$</span>
+                        <span id="sumGrossTotal" class="text-5xl md:text-6xl font-black tracking-tight">0</span>
+                    </div>
+                </div>
+
+                <!-- Sub Summaries & Buttons -->
+                <div class="pt-6 space-y-6">
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <p class="text-xs text-brand-gray mb-1">工程造價 (未稅)</p>
+                            <p id="sumNetTotal" class="text-lg font-bold text-brand-black">NT$0</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-brand-gray mb-1">工程監管費 (10%)</p>
+                            <p id="sumManagement" class="text-lg font-bold text-brand-black">NT$0</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-brand-gray mb-1">營業稅 (5%)</p>
+                            <p id="sumTax" class="text-lg font-bold text-brand-black">NT$0</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4 pt-4 print:hidden">
+                        <button onclick="window.print()" class="flex-1 py-4 px-4 bg-brand-black text-white text-sm font-medium tracking-widest hover:bg-gray-800 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="printer" class="w-4 h-4"></i> 列印 PDF 報表
+                        </button>
+                        <button onclick="exportToCSV()" class="flex-1 py-4 px-4 border border-brand-black text-brand-black text-sm font-medium tracking-widest hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+                            <i data-lucide="download" class="w-4 h-4"></i> 下載 CSV
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Bar Chart -->
+            <div class="lg:col-span-8 bg-gray-50/50 p-6 rounded-xl border border-gray-100 flex items-end">
+                <div class="w-full h-[400px] relative">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Section -->
+        <div class="pt-8 print:pt-0 print-page-break">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead class="bg-brand-black text-white text-sm tracking-wider">
+                        <tr>
+                            <th class="py-4 px-6 font-medium w-16 text-center">項次</th>
+                            <th class="py-4 px-6 font-medium w-48">工程項目</th>
+                            <th class="py-4 px-6 font-medium">工程規畫重點與執行細節</th>
+                            <th class="py-4 px-6 font-medium w-48 text-right print:w-24">預算配比 (%)</th>
+                            <th class="py-4 px-6 font-medium text-right w-40">預算分配 (TWD)</th>
+                            <th class="py-4 px-6 font-medium text-center w-20 print:hidden">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="budgetTableBody" class="text-sm">
+                        <!-- Table Rows Generated Here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Pre-defined Preset Ratios
+        const PRESETS_DATA = {
+            'new': {
+                unitPrice: 70000,
+                // 新成屋：依據新指定配比，將超出之 1% 從廚具工程扣除 (4% -> 3%) 以維持 100%
+                ratios: { 'demo': 2, 'windows': 1, 'masonry': 2, 'mep': 12, 'hvac': 15, 'ceiling': 10, 'cabinetry': 19.5, 'metal': 3, 'paint': 11, 'floor': 4, 'kitchen': 5, 'lighting': 2, 'bath': 2, 'stone': 3, 'glass': 3, 'hardware': 1.5, 'curtain': 0, 'other': 2, 'clean': 2 }
+            },
+            'old': {
+                unitPrice: 140000,
+                // 老屋翻新：著重泥作、水電、拆除、鋁窗。木作占比被壓縮。
+                ratios: { 'demo': 7, 'windows': 10, 'masonry': 17, 'mep': 14, 'hvac': 8, 'ceiling': 6, 'cabinetry': 12, 'metal': 2, 'paint': 7, 'floor': 5, 'kitchen': 4, 'lighting': 1.5, 'bath': 3, 'stone': 0.5, 'glass': 1, 'hardware': 0.5, 'curtain': 0, 'other': 1.5, 'clean': 1 }
+            },
+            'com': {
+                unitPrice: 80000,
+                // 商空/辦公：著重水電、空調、天花板、玻璃、鐵工。無廚具衛浴(或極低)。
+                ratios: { 'demo': 6, 'windows': 2, 'masonry': 5, 'mep': 14, 'hvac': 13, 'ceiling': 11, 'cabinetry': 8, 'metal': 6, 'paint': 8, 'floor': 8, 'kitchen': 1, 'lighting': 6, 'bath': 1, 'stone': 1, 'glass': 6, 'hardware': 1, 'curtain': 0, 'other': 2, 'clean': 1 }
+            }
+        };
+
+        // High-end preset items with descriptions matching the visual reference (Initial matches "new" preset)
+        const INITIAL_ITEMS = [
+            { id: 'demo', name: '假設保護與拆除工程', desc: '施工前保護措施、既有裝修拆除、廢棄物清運與基礎清理作業。', ratio: 2, isEnabled: true },
+            { id: 'windows', name: '鋁窗工程', desc: '鋁窗、氣密窗、玻璃窗框與相關五金安裝工程。', ratio: 1, isEnabled: true },
+            { id: 'masonry', name: '泥作工程', desc: '砌磚、粉光、防水、貼磚與水泥基礎修整等施工。', ratio: 2, isEnabled: true },
+            { id: 'mep', name: '水電工程', desc: '全室給排水、電力配置、弱電管線與設備安裝工程，確保用電負載與安全。', ratio: 12, isEnabled: true },
+            { id: 'hvac', name: '空調工程', desc: '冷氣設備、冷媒管線、排水與空調系統安裝配置。', ratio: 15, isEnabled: true },
+            { id: 'ceiling', name: '木作天花隔間工程', desc: '天花板造型、輕隔間、包樑與木作基礎架構施工。', ratio: 10, isEnabled: true },
+            { id: 'cabinetry', name: '木作櫃體工程', desc: '系統櫃、木作櫃體、收納櫃與展示櫃製作安裝。', ratio: 19.5, isEnabled: true },
+            { id: 'metal', name: '鐵工工程', desc: '鐵件結構、金屬框架、扶手、吊架與客製鐵件製作。', ratio: 3, isEnabled: true },
+            { id: 'paint', name: '油漆工程', desc: '牆面天花批土、底漆、面漆與特殊塗料表面處理工程。', ratio: 11, isEnabled: true },
+            { id: 'floor', name: '地坪工程', desc: '木地板、磁磚、石材、SPC 與地面整平施工。', ratio: 6, isEnabled: true },
+            { id: 'kitchen', name: '廚具工程', desc: '廚具設備、檯面、櫥櫃與廚房五金安裝配置。', ratio: 3, isEnabled: true },
+            { id: 'lighting', name: '燈具設備', desc: '照明燈具、軌道燈、崁燈與控制設備安裝。', ratio: 2, isEnabled: true },
+            { id: 'bath', name: '衛浴設備', desc: '馬桶、面盆、浴櫃、龍頭與衛浴配件安裝。', ratio: 2, isEnabled: true },
+            { id: 'stone', name: '人造石工程', desc: '人造石檯面、吧台、窗台與石材加工安裝。', ratio: 3, isEnabled: true },
+            { id: 'glass', name: '玻璃工程', desc: '明鏡、烤漆玻璃與淋浴間玻璃隔間。', ratio: 3, isEnabled: true },
+            { id: 'hardware', name: '五金設備', desc: '門鎖、把手、滑軌、鉸鏈與各式五金配件安裝。', ratio: 1.5, isEnabled: true },
+            { id: 'curtain', name: '窗簾工程(軟裝另計)', desc: '遮光布、紗簾、百葉窗等窗飾規劃。', ratio: 0, isEnabled: true },
+            { id: 'other', name: '其他工程', desc: '特殊客製項目、雜項施工與追加工程內容。', ratio: 2, isEnabled: true },
+            { id: 'clean', name: '清潔工程', desc: '完工細清、粉塵清潔與交屋前環境整理。', ratio: 2, isEnabled: true },
+        ];
+
+        let state = {
+            projectName: '新建裝修專案',
+            area: 24,
+            unitPrice: 70000,
+            items: JSON.parse(JSON.stringify(INITIAL_ITEMS))
+        };
+
+        let barChartInstance = null;
+
+        // Formatting Helpers
+        const formatCurrency = (val) => new Intl.NumberFormat('zh-TW', { minimumFractionDigits: 0 }).format(Math.round(val));
+        const formatNum = (val) => new Intl.NumberFormat('zh-TW').format(Math.round(val));
+
+        // Core App Logic
+        function initApp() {
+            lucide.createIcons();
+            updateAll();
+        }
+
+        function applyPreset(type) {
+            const data = PRESETS_DATA[type];
+            
+            // 1. Update Unit Price
+            state.unitPrice = data.unitPrice;
+            document.getElementById('unitPriceInput').value = data.unitPrice;
+            document.getElementById('unitPriceSlider').value = data.unitPrice;
+            
+            // 2. Update Ratios & ensure all are enabled when preset is applied
+            state.items.forEach(item => {
+                item.ratio = data.ratios[item.id] || 0;
+                item.isEnabled = true; 
+            });
+
+            // 3. Update UI active button styles
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.remove('border-brand-black', 'bg-gray-50', 'ring-1', 'ring-brand-black');
+                btn.classList.add('border-gray-300');
+            });
+            const activeBtn = document.getElementById(`btnPreset-${type}`);
+            activeBtn.classList.remove('border-gray-300');
+            activeBtn.classList.add('border-brand-black', 'bg-gray-50', 'ring-1', 'ring-brand-black');
+
+            // 4. Recalculate
+            updateAll();
+        }
+
+        function updateState() {
+            state.projectName = document.getElementById('projectName').value;
+            state.area = Math.max(1, Number(document.getElementById('area').value) || 1);
+            
+            const up = Math.max(1, Number(document.getElementById('unitPriceInput').value) || 1);
+            state.unitPrice = up;
+            document.getElementById('unitPriceSlider').value = up;
+            document.getElementById('areaSlider').value = state.area;
+            
+            updateAll();
+        }
+
+        function updateUnitPrice(val) {
+            const up = Math.max(1, Number(val));
+            state.unitPrice = up;
+            document.getElementById('unitPriceInput').value = up;
+            document.getElementById('unitPriceSlider').value = up;
+            updateAll();
+        }
+
+        function handleToggle(id) {
+            const target = state.items.find(p => p.id === id);
+            const isTurningOff = target.isEnabled;
+
+            if (isTurningOff) {
+                const otherEnabled = state.items.filter(p => p.id !== id && p.isEnabled);
+                const totalOtherRatio = otherEnabled.reduce((sum, item) => sum + item.ratio, 0);
+                
+                if (totalOtherRatio === 0) return; // Prevent turning off last item
+
+                state.items.forEach(item => {
+                    if (item.id === id) {
+                        item.isEnabled = false;
+                        item._savedRatio = item.ratio;
+                        item.ratio = 0;
+                    } else if (item.isEnabled) {
+                        const proportion = item.ratio / totalOtherRatio;
+                        item.ratio = item.ratio + (target.ratio * proportion);
+                    }
+                });
+            } else {
+                const ratioToRestore = target._savedRatio || 5;
+                const currentEnabled = state.items.filter(p => p.isEnabled);
+                const totalCurrentRatio = currentEnabled.reduce((sum, item) => sum + item.ratio, 0);
+
+                state.items.forEach(item => {
+                    if (item.id === id) {
+                        item.isEnabled = true;
+                        item.ratio = ratioToRestore;
+                    } else if (item.isEnabled) {
+                        const proportion = item.ratio / totalCurrentRatio;
+                        item.ratio = Math.max(0, item.ratio - (ratioToRestore * proportion));
+                    }
+                });
+            }
+            updateAll();
+        }
+
+        function handleRatioChange(id, newRatioValue) {
+            let newRatio = parseFloat(newRatioValue);
+            if (isNaN(newRatio)) newRatio = 0;
+            if (newRatio > 100) newRatio = 100;
+            if (newRatio < 0) newRatio = 0;
+
+            const target = state.items.find(p => p.id === id);
+            if (!target || !target.isEnabled) return;
+
+            const diff = newRatio - target.ratio;
+            const otherEnabled = state.items.filter(p => p.id !== id && p.isEnabled);
+            const totalOtherRatio = otherEnabled.reduce((sum, item) => sum + item.ratio, 0);
+
+            if (newRatio === 100) {
+                state.items.forEach(item => {
+                    if (item.id === id) item.ratio = 100;
+                    else {
+                        item.ratio = 0;
+                    }
+                });
+            } else {
+                if (totalOtherRatio === 0) return;
+
+                state.items.forEach(item => {
+                    if (item.id === id) item.ratio = newRatio;
+                    else if (item.isEnabled) {
+                        const proportion = item.ratio / totalOtherRatio;
+                        item.ratio = Math.max(0, item.ratio - (diff * proportion));
+                    }
+                });
+            }
+            updateAll();
+        }
+
+        function updateAll() {
+            const netTotal = Math.round(state.area * state.unitPrice);
+            const managementFee = Math.round(netTotal * 0.1);
+            const tax = Math.round((netTotal + managementFee) * 0.05); // 營業稅 5%
+            const grossTotal = netTotal + managementFee + tax; // 總承攬金額
+
+            // 解決百分比乘法與四捨五入造成的加總誤差 (尾差調整法)
+            const activeItems = state.items.filter(i => i.isEnabled);
+            let runningTotal = 0;
+            
+            // 尋找吸收尾差的目標工項：優先找「其他工程(other)」，若未啟用則找最後一個啟用的項目
+            let targetItemForDiff = activeItems.find(i => i.id === 'other');
+            if (!targetItemForDiff && activeItems.length > 0) {
+                targetItemForDiff = activeItems[activeItems.length - 1];
+            }
+
+            // 先計算非目標工項的金額並累加
+            activeItems.forEach((item) => {
+                if (item !== targetItemForDiff) {
+                    item.amount = Math.round(netTotal * (item.ratio / 100));
+                    runningTotal += item.amount;
+                }
+            });
+
+            // 將總工程款扣除已分配的總和，剩餘金額(含尾差)直接指派給目標工項
+            if (targetItemForDiff) {
+                targetItemForDiff.amount = netTotal - runningTotal;
+            }
+
+            // 沒啟用的項目金額歸零
+            state.items.filter(i => !i.isEnabled).forEach(item => item.amount = 0);
+
+            renderSummaries(netTotal, managementFee, tax, grossTotal);
+            renderTable();
+            renderCharts();
+        }
+
+        // --- Render Functions ---
+
+        function renderSummaries(netTotal, managementFee, tax, grossTotal) {
+            document.getElementById('sumNetTotal').textContent = 'NT$ ' + formatCurrency(netTotal);
+            document.getElementById('sumManagement').textContent = 'NT$ ' + formatCurrency(managementFee);
+            document.getElementById('sumTax').textContent = 'NT$ ' + formatCurrency(tax);
+            document.getElementById('sumGrossTotal').textContent = formatCurrency(grossTotal);
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('budgetTableBody');
+            let html = '';
+            let index = 1;
+
+            state.items.forEach((item) => {
+                const amount = item.amount || 0;
+                const isOff = !item.isEnabled;
+                const rowClass = isOff ? 'opacity-40 bg-gray-50' : 'bg-white hover:bg-gray-50';
+
+                html += `
+                <tr class="border-b border-gray-200 ${rowClass} transition-colors">
+                    <td class="py-5 px-6 text-brand-gray font-mono text-center">${String(index).padStart(2, '0')}</td>
+                    <td class="py-5 px-6 font-bold text-brand-black">${item.name}</td>
+                    <td class="py-5 px-6 text-brand-gray text-sm">${item.desc}</td>
+                    <td class="py-5 px-6">
+                        <div class="flex flex-col items-end gap-2">
+                            <div class="flex items-center gap-1">
+                                <input type="number" value="${item.ratio.toFixed(1)}" onchange="handleRatioChange('${item.id}', this.value)" ${isOff ? 'disabled' : ''} class="w-16 bg-transparent border border-gray-300 rounded px-2 py-1 text-sm text-right font-medium print:border-none print:p-0">
+                                <span class="text-brand-gray text-sm font-medium">%</span>
+                            </div>
+                            <input type="range" min="0" max="100" step="0.1" value="${item.ratio}" oninput="handleRatioChange('${item.id}', this.value)" ${isOff ? 'disabled' : ''} class="w-full max-w-[120px] print:hidden">
+                        </div>
+                    </td>
+                    <td class="py-5 px-6 text-right font-bold text-brand-black tracking-wide">$ ${formatNum(amount)}</td>
+                    <td class="py-5 px-6 text-center print:hidden">
+                        <button onclick="handleToggle('${item.id}')" class="text-gray-400 hover:text-brand-black transition-colors p-2">
+                            <i data-lucide="${isOff ? 'eye-off' : 'eye'}" class="w-5 h-5 mx-auto"></i>
+                        </button>
+                    </td>
+                </tr>
+                `;
+                index++;
+            });
+            tbody.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function renderCharts() {
+            const activeItems = state.items.filter(i => i.isEnabled);
+            const labels = activeItems.map(i => i.name);
+            // Plotting the exact amount (TWD) to match visual reference
+            const data = activeItems.map(i => i.amount);
+
+            const barCtx = document.getElementById('barChart').getContext('2d');
+            
+            if (barChartInstance) {
+                barChartInstance.data.labels = labels;
+                barChartInstance.data.datasets[0].data = data;
+                barChartInstance.update();
+            } else {
+                Chart.defaults.font.family = '"Noto Sans TC", sans-serif';
+                barChartInstance = new Chart(barCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            data: data,
+                            backgroundColor: '#111827', // Dark black bars
+                            hoverBackgroundColor: '#374151',
+                            borderRadius: 0,
+                            barPercentage: 0.7,
+                            categoryPercentage: 0.8
+                        }]
+                    },
+                    options: {
+                        indexAxis: 'x', // Vertical bars
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleColor: '#ffffff',
+                                bodyColor: '#ffffff',
+                                titleFont: { size: 14 },
+                                padding: 12,
+                                callbacks: {
+                                    label: function(context) {
+                                        return ` 預算: $ ${formatNum(context.raw)}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { 
+                                grid: { display: false },
+                                ticks: { 
+                                    color: '#4b5563', 
+                                    font: { size: 11, weight: '500' },
+                                    maxRotation: 45,
+                                    minRotation: 45
+                                }
+                            },
+                            y: { 
+                                grid: { color: '#e5e7eb', drawBorder: false },
+                                ticks: { 
+                                    color: '#9ca3af',
+                                    callback: function(value) {
+                                        return formatNum(value);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // --- Export CSV ---
+        function exportToCSV() {
+            const activeItems = state.items.filter(i => i.isEnabled);
+            const netTotal = Math.round(state.area * state.unitPrice);
+            const managementFee = Math.round(netTotal * 0.1);
+            const tax = Math.round((netTotal + managementFee) * 0.05);
+            const grossTotal = netTotal + managementFee + tax;
+
+            let csvContent = "\uFEFF"; // BOM for UTF-8 compatibility in Excel
+            csvContent += "INTOCANAAN DESIGN,室內裝修工程預算分配\n\n";
+            csvContent += `專案名稱,${state.projectName}\n`;
+            csvContent += `實際裝修坪數,${state.area} 坪\n`;
+            csvContent += `工程基礎單價,${state.unitPrice} 元/坪\n`;
+            csvContent += `專案總承攬金額(含稅含管),NT$ ${formatCurrency(grossTotal)}\n\n`;
+            
+            // Table Headers
+            csvContent += "項次,工程項目,工程規畫重點與執行細節,配比(%),預算分配(TWD)\n";
+            
+            let index = 1;
+            activeItems.forEach(i => {
+                const amt = i.amount || 0;
+                // Handle commas in descriptions by wrapping in quotes
+                const safeDesc = `"${i.desc}"`;
+                csvContent += `${String(index).padStart(2, '0')},${i.name},${safeDesc},${i.ratio.toFixed(2)}%,${amt}\n`;
+                index++;
+            });
+            
+            csvContent += `\n,,,工程造價(預估未稅),${Math.round(netTotal)}\n`;
+            csvContent += `,,,工程監管費(10%),${Math.round(managementFee)}\n`;
+            csvContent += `,,,營業稅(5%),${Math.round(tax)}\n`;
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", `${state.projectName || 'INTOCANAAN'}_預算分配表.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Initialize App on load
+        window.addEventListener('DOMContentLoaded', initApp);
+
+    </script>
+</body>
+</html>
